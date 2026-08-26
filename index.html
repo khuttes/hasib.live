@@ -1529,7 +1529,7 @@
             iframe.title = 'Hasib Islam YouTube Video';
             iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
             iframe.allowFullscreen = true;
-            iframe.src = `https://www.youtube-nocookie.com/embed/${YT_VIDEO_ID}?enablejsapi=1&autoplay=1&mute=1&loop=1&playlist=${YT_VIDEO_ID}&controls=1&rel=0&playsinline=1&origin=${encodeURIComponent(origin)}`;
+            iframe.src = `https://www.youtube-nocookie.com/embed/${YT_VIDEO_ID}?enablejsapi=1&autoplay=1&mute=0&loop=1&playlist=${YT_VIDEO_ID}&controls=1&rel=0&playsinline=1&origin=${encodeURIComponent(origin)}`;
             wrapper.appendChild(iframe);
 
             // If the YouTube IFrame API script (loaded from youtube.com) never calls back —
@@ -1583,6 +1583,17 @@
             const loadingState = document.getElementById('yt-loading-state');
             if (loadingState) loadingState.remove();
 
+            // Request audible autoplay first. Browsers may reject it when
+            // autoplay-with-sound is not permitted; in that case the iframe
+            // remains usable and the first user gesture enables sound.
+            try {
+                event.target.unMute();
+                event.target.setVolume(100);
+                event.target.playVideo();
+            } catch (err) {
+                try { event.target.mute(); event.target.playVideo(); } catch (_) {}
+            }
+
             const soundBtn = document.getElementById('yt-sound-toggle');
             const soundIcon = document.getElementById('yt-sound-icon');
             const soundText = document.getElementById('yt-sound-text');
@@ -1621,20 +1632,15 @@
 
             if (soundBtn) soundBtn.addEventListener('click', toggleAudio);
 
-            // Browsers block *unmuted* autoplay unless the visitor has already interacted
-            // with the page — that's a fixed platform policy, not something any single
-            // site can override. The video itself still autoplays instantly (muted), and
-            // the very first click, tap, or key press anywhere on the page unmutes it —
-            // so audio starts as early as the browser will ever allow.
+            // If audible autoplay is blocked, the first click/tap/key press
+            // retries unmuted playback immediately. This is the earliest point
+            // permitted by browsers that enforce autoplay-with-sound policies.
             const autoEnableAudio = () => {
                 if (!isAudioUnmuted && ytPlayer) enableAudio();
-                document.removeEventListener('click', autoEnableAudio);
-                document.removeEventListener('keydown', autoEnableAudio);
-                document.removeEventListener('touchstart', autoEnableAudio);
             };
-            document.addEventListener('click', autoEnableAudio, { once: true });
-            document.addEventListener('keydown', autoEnableAudio, { once: true });
-            document.addEventListener('touchstart', autoEnableAudio, { once: true });
+            document.addEventListener('click', autoEnableAudio, { once: true, passive: true });
+            document.addEventListener('keydown', autoEnableAudio, { once: true, passive: true });
+            document.addEventListener('touchstart', autoEnableAudio, { once: true, passive: true });
         }
 
         // If the youtube.com/iframe_api script itself never loads (network block, ad
